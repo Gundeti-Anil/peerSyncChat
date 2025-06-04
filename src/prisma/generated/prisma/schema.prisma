@@ -1,0 +1,124 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+generator client {
+  provider = "prisma-client-js"
+  output   = "./generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  USER
+  ADMIN
+  MENTOR
+  MENTEE
+}
+
+model User {
+  id            Int       @id @default(autoincrement())
+  name          String?
+  email         String    @unique
+  emailVerified DateTime?
+  interestedIn  String[]  @default([])
+  image         String?
+  password      String?
+  role          UserRole  @default(USER)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  accounts Account[]
+  profile  Profile?
+
+  messagesSent  Message[]      @relation("UserToMessages")
+  seenMessages  Message[]      @relation("UserToSeenMessages")
+  conversations Conversation[] @relation("UserToConversation")
+
+  @@index([email])
+}
+
+model Profile {
+  id                 Int      @id @default(autoincrement())
+  userName           String   @unique
+  role               UserRole
+  firstName          String
+  lastName           String
+  gender             String?
+  tagLine            String?
+  description        String?
+  languages          String?
+  mobile             String?
+  availability       String?
+  city               String?
+  country            String?
+  profilePhoto       String?
+  bannerPhoto        String?
+  skills             String[]
+  mentorshipCategory String?
+
+  userId Int  @unique
+  user   User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  userVerified  DateTime?
+  userOnboarded DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@index([firstName, lastName])
+  @@index([city, country])
+}
+
+model Account {
+  id                Int     @id @default(autoincrement())
+  userId            Int
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_in        Int?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@index([userId])
+}
+
+model Conversation {
+  id            String   @id @default(uuid())
+  createdAt     DateTime @default(now())
+  lastMessageAt DateTime @default(now())
+  name          String?
+
+  messages Message[]
+  users    User[]    @relation("UserToConversation")
+
+  @@map("conversations")
+}
+
+model Message {
+  id        String   @id @default(uuid())
+  body      String?
+  image     String?
+  doc       String?
+  createdAt DateTime @default(now())
+
+  conversationId String
+  senderId       Int
+
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  sender       User         @relation("UserToMessages", fields: [senderId], references: [id], onDelete: Cascade)
+  seen         User[]       @relation("UserToSeenMessages")
+
+  @@map("messages")
+}
