@@ -1,191 +1,91 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { pusher } from "@/lib/pusher";
-
-// export async function GET(req: NextRequest) {
-//   const session = await getServerSession(authOptions);
-
-//   if (!session?.user?.email) {
-//     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-//   }
-  
-//   const currentUser = session.user;
-
-//   if (!currentUser || currentUser.role !== "MENTEE") {
-//     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-//   }
-
-//   const { searchParams } = new URL(req.url);
-//   const targetUserId = searchParams.get("userId");
-
-//   if (!targetUserId) {
-//     return NextResponse.json({ error: "Missing userId" }, { status: 400 });
-//   }
-
-//   const targetUser = await db.user.findUnique({
-//     where: { id: parseInt(targetUserId) },
-//   });
-
-//   const hasSharedInterest =
-//     targetUser?.role === "MENTEE" &&
-//     currentUser.interestedIn?.some((interest: string) =>
-//       targetUser.interestedIn.includes(interest)
-//     );
-
-//   if (!targetUser || !hasSharedInterest) {
-//     return NextResponse.json(
-//       { error: "Cannot fetch messages with this user" },
-//       { status: 403 }
-//     );
-//   }
-//   const conversation = await db.conversation.findFirst({
-//     where: {
-//       users: {
-//         every: {
-//           id: {
-//             in: [parseInt(currentUser.id), parseInt(targetUserId)]
-//           }
-//         }
-//       }
-//     }
-//   })
-
-//   if (!conversation) {
-//     return NextResponse.json(
-//       { error: "Conversation not found" },
-//       { status: 404 }
-//     );
-//   }
-
-//   const messages = await db.message.findMany({
-//     where: {
-//       conversationId: conversation.id
-//     },
-//     orderBy: { createdAt: "asc" },
-//   });
-
-//   if (!messages) {
-//     return NextResponse.json([], { status: 200 }); // No messages yet
-//   }
-
-//   return NextResponse.json(messages);
-// }
+import getCurrentUser from "@/app/actions/getCurrentUser";
+import getMessages from "@/app/actions/getMessages";
+import getConversationByUserId from "@/app/actions/getConversationByUserId";
+import { revalidateTag } from "next/cache";
 
 export async function GET(req: NextRequest) {
-  const session = await getServerSession(authOptions);
+  const currentUser = await getCurrentUser();
 
-  if (!session?.user?.email) {
+  if (!currentUser?.email) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
   
-  const currentUser = session.user;
 
- 
+  if (!currentUser || currentUser.role !== "MENTEE") {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
 
   const { searchParams } = new URL(req.url);
-  const conversationId = searchParams.get("conversationId") as string;
-  
-  if (!conversationId) {
-    return NextResponse.json({ error: "Conversation ID is required" }, { status: 400 });
+  const targetUserId = searchParams.get("userId");
+
+  if (!targetUserId) {
+    return NextResponse.json({ error: "Missing userId" }, { status: 400 });
   }
 
-  const conversation = await db.conversation.findUnique({
-    where: {
-      id: conversationId,
-      users: {
-        some: {
-          id: parseInt(currentUser.id),
-        },
-      },
-    },
-  });
+  const conversation = await getConversationByUserId(currentUser.id, parseInt(targetUserId));
 
   if (!conversation) {
-    return NextResponse.json(
-      { error: "Conversation not found" },
-      { status: 404 }
-    );
+    return NextResponse.json({ error: "Conversation not found" }, { status: 404 });
   }
 
-  const messages = await db.message.findMany({
-    where: {
-      conversationId: conversation.id
-    },
-    orderBy: { createdAt: "asc" },
-  });
-
+  const messages = await getMessages(conversation?.id as string);
+  
   if (!messages) {
-    return NextResponse.json([], { status: 200 }); 
+    return NextResponse.json({ error: "Conversation not found" }, { status: 404 });
   }
-
+  
   return NextResponse.json(messages);
+
+
 }
 
 
 
+
 export async function POST(req: NextRequest) {
-    const session = await getServerSession(authOptions);
+    const currentUser = await getCurrentUser();
   
-    if (!session?.user?.email) {
+    if (!currentUser?.email) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
-
-    const currentUser = session.user;
   
     if (!currentUser || currentUser.role !== "MENTEE") {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
-    
-    
-    const { body, image , conversationId} = await req.json();
-
-  
-    // if (!receiverId) {
-    //   return NextResponse.json({ error: "Bad Request" }, { status: 400 });
-    // }
-  
-    // const targetUser = await db.user.findUnique({
-    //   where: { id: parseInt(receiverId) },
-    // });
-  
-    // const hasSharedInterest =
-    //   targetUser?.role === "MENTEE" &&
-    //   currentUser.interestedIn?.some((interest: string) =>
-    //     targetUser.interestedIn.includes(interest)
-    //   );
-  
-    // if (!targetUser || !hasSharedInterest) {
-    //   return NextResponse.json(
-    //     { error: "Cannot fetch messages with this user" },
-    //     { status: 403 }
-    //   );
-    // }
-
-    
+       
+    const { body, image , conversationId } = await req.json();
 
     // if (image) {
     //   const imageResponse = await cloudinary.uploader.upload(image);
     //   message = imageResponse.secure_url;
     // }
-    console.log(conversationId);
     const conversation = await db.conversation.findUnique({
       where: {
         id: conversationId,
-        users: {
-          some: {
-            id: parseInt(currentUser.id),
-          },
-        },
+        // users: {
+        //   some: {
+        //     id: parseInt(currentUser.id),
+        //   },
+        // },
+      },
+      include: {
+        users: true,
       },
     });
+
 
     if (!conversation) {
       return NextResponse.json(
         { error: "Conversation not found" },
         { status: 404 }
       );
+    }
+    const isUserInConversation = conversation?.users.some(user => user.id === currentUser.id);
+    if (!isUserInConversation) {
+      return new NextResponse("Unauthorized", { status: 403 });
     }
 
     const newMessage = await db.message.create({
@@ -199,12 +99,12 @@ export async function POST(req: NextRequest) {
         },
         sender: {
           connect: {
-            id: parseInt(currentUser.id),
+            id: currentUser.id,
           },
         },
         seen: {
           connect: {
-            id: parseInt(currentUser.id),
+            id: currentUser.id,
           },
         },
       },
@@ -224,6 +124,10 @@ export async function POST(req: NextRequest) {
       },
     });
 
+    await pusher.trigger(`private-chat-${conversationId}`, "newMessage", newMessage);
+
+    revalidateTag(`conversation-${conversationId}`);
+
     await db.conversation.update({
       where: {
         id: conversationId
@@ -236,12 +140,9 @@ export async function POST(req: NextRequest) {
           },
         },
       },
-      
     });
 
-
-
-    await pusher.trigger(`private-chat-${conversationId}`, "newMessage", newMessage);
+   
   
     if (!newMessage) {
       return NextResponse.json([], { status: 200 }); 
@@ -250,3 +151,110 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(newMessage);
   }
   
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  // export async function GET(req: NextRequest) {
+//   const session = await getServerSession(authOptions);
+
+//   if (!session?.user?.email) {
+//     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+//   }
+  
+//   const currentUser = session.user;
+
+ 
+
+//   const { searchParams } = new URL(req.url);
+//   const conversationId = searchParams.get("conversationId") as string;
+  
+//   if (!conversationId) {
+//     return NextResponse.json({ error: "Conversation ID is required" }, { status: 400 });
+//   }
+
+//   const conversation = await db.conversation.findUnique({
+//     where: {
+//       id: conversationId,
+//       users: {
+//         some: {
+//           id: parseInt(currentUser.id),
+//         },
+//       },
+//     },
+//   });
+
+//   if (!conversation) {
+//     return NextResponse.json(
+//       { error: "Conversation not found" },
+//       { status: 404 }
+//     );
+//   }
+
+//   const messages = await db.message.findMany({
+//     where: {
+//       conversationId: conversation.id
+//     },
+//     orderBy: { createdAt: "asc" },
+//   });
+
+//   if (!messages) {
+//     return NextResponse.json([], { status: 200 }); 
+//   }
+
+//   return NextResponse.json(messages);
+// }

@@ -1,23 +1,19 @@
 import { NextResponse , NextRequest} from "next/server";
-import { getServerSession } from "next-auth";
-
-import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { getCurrentUser } from "@/utils/auth";
 
 export async function POST(
   req: NextRequest,
 ) {
   try {
-    const session = await getServerSession(authOptions);
+    const currentUser = await getCurrentUser();
     const body = await req.json();
     const { userId } = body;
 
-    if (!session?.user?.email) {
+    if (!currentUser?.email) {
       return new NextResponse('Unauthorized', { status: 401 });
     }
-    
-    const currentUser = session.user;
-
+    // @ts-ignore
     if (!currentUser || currentUser.role !== "MENTEE") {
       return new NextResponse('Unauthorized', { status: 401 });
     }
@@ -44,6 +40,7 @@ export async function POST(
 
     const hasSharedInterest =
     targetUser?.role === "MENTEE" &&
+    // @ts-ignore
     currentUser.interestedIn?.some((interest: string) =>
       targetUser.interestedIn.includes(interest)
     );
@@ -54,6 +51,7 @@ export async function POST(
           { status: 403 }
         );
       }
+    
 
     const newConversation = await db.conversation.create({
       data: {
@@ -78,6 +76,54 @@ export async function POST(
     return new NextResponse('Internal Error', { status: 500 });
   }
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 // export async function GET(
 //   request: Request

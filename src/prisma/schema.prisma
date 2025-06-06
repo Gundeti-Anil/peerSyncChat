@@ -103,6 +103,9 @@ model Conversation {
   messages      Message[]
   users         User[]         @relation("UserToConversation")
 
+  @@index([lastMessageAt])
+  @@index([createdAt])
+
   @@map("conversations")
 }
 
@@ -120,6 +123,8 @@ model Message {
   sender         User         @relation("UserToMessages", fields: [senderId], references: [id], onDelete: Cascade)
   seen           User[]       @relation("UserToSeenMessages")
 
+  @@index([conversationId, createdAt])
+  @@index([conversationId, senderId])
   @@map("messages")
 }
 
