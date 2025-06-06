@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { pusher } from "@/lib/pusher";
+import { pusherServer } from "@/lib/pusher";
 import getCurrentUser from "@/app/actions/getCurrentUser";
 import getMessages from "@/app/actions/getMessages";
 import getConversationByUserId from "@/app/actions/getConversationByUserId";
@@ -124,7 +124,7 @@ export async function POST(req: NextRequest) {
       },
     });
 
-    await pusher.trigger(`private-chat-${conversationId}`, "newMessage", newMessage);
+    await pusherServer.trigger(`private-chat-${conversationId}`, "newMessage", newMessage);
 
     revalidateTag(`conversation-${conversationId}`);
 

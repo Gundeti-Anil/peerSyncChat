@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 
 import { authOptions } from "@/lib/auth";
-import { pusher } from "@/lib/pusher";
+import { pusherServer } from "@/lib/pusher";
 
 interface PusherAuthBody {
     socket_id: string;
@@ -25,6 +25,6 @@ export async function POST(
 		user_id: session.user.email,
 	};
 
-	const authResponse = pusher.authorizeChannel(socket_id, channel_name, data);
+	const authResponse = pusherServer.authorizeChannel(socket_id, channel_name, data);
 	return NextResponse.json(authResponse);
 }
